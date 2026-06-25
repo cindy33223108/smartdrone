@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KBK - Smart Delivery Drone</title>
+    
+    <!-- Tailwind CSS & Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Space+Mono:wght@400;700&display=swap');
+        
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: radial-gradient(circle at center, #0f172a 0%, #020617 100%);
+            color: #f8fafc;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+        .font-tech { font-family: 'Space Mono', monospace; }
+        
+        /* Panel Kaca Cyberpunk */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.65);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(168, 85, 247, 0.15); /* Tema Ungu Neon */
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            transition: all 0.3s ease;
+        }
+        .glass-panel:hover {
+            border-color: rgba(168, 85, 247, 0.35);
+            box-shadow: 0 10px 30px rgba(168, 85, 247, 0.08);
+        }
+
+        /* Gelang Gelongsor Ubahsuai */
+        input[type="range"] {
+            -webkit-appearance: none; width: 100%; height: 6px; background: rgba(255, 255, 255, 0.1); border-radius: 5px; outline: none; margin-top: 5px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #a855f7; cursor: pointer; box-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
+        }
+
+        /* Navigasi Tab Aktif */
+        .tab-btn { transition: all 0.3s ease; }
+        .tab-active { background: #9333ea; color: white; box-shadow: 0 4px 15px rgba(168, 85, 247, 0.3); }
+        .tab-inactive { color: #c084fc; background: transparent; }
+        .tab-inactive:hover { color: white; }
+    </style>
+</head>
+<body class="p-4 md:p-8 flex flex-col justify-between">
+
+    <!-- Kepala Halaman -->
+    <header class="flex flex-col md:flex-row justify-between items-start md:items-center max-w-7xl mx-auto w-full gap-4 border-b border-slate-800 pb-5 mb-6">
+        <div class="flex items-center gap-4">
+            <div class="p-3 bg-purple-950/40 rounded-2xl border border-purple-700/50 text-3xl">🛸</div>
+            <div>
+                <h1 class="text-2xl md:text-3xl font-black tracking-tight text-white">ADAPTIVE DRONE ALTITUDE PID CONTROLLER </span></h1>
+                <p class="text-[11px] font-tech text-purple-400/70 tracking-widest uppercase mt-1">Smart Delivery Drone / Cindy Carmelita Amanda EK-3B</p>
+            </div>
+        </div>
+
+        <!-- Pemilih Tab Navigasi -->
+        <div class="flex bg-slate-900/80 p-1.5 rounded-full border border-slate-700">
+            <button onclick="switchTab('sim')" id="btnSim" class="tab-btn tab-active px-5 py-2 rounded-full text-xs font-bold">
+                🎛️ Simulasi Autopilot
+            </button>
+            <button onclick="switchTab('biz')" id="btnBiz" class="tab-btn tab-inactive px-5 py-2 rounded-full text-xs font-bold">
+                💼 Rencana Bisnis
+            </button>
+        </div>
+    </header>
+
+    <!-- KANDUNGAN UTAMA -->
+    <div class="max-w-7xl mx-auto w-full flex-grow">
+        
+        <!-- ================= TAB 1: SIMULATOR (KBK) ================= -->
+        <div id="tabSim" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- KOLOM KIRI: Pengaturan Ketinggian & Parameter PID (4 Kolom) -->
+            <div class="lg:col-span-4 flex flex-col gap-6">
+                <!-- Sasaran Ketinggian (Setpoint) -->
+                <div class="glass-panel p-5">
+                    <h3 class="text-xs font-bold uppercase text-purple-400 tracking-wider border-b border-slate-700 pb-2 mb-4">🎯 Sasaran Ketinggian (Setpoint)</h3>
+                    
+                    <div class="mb-4">
+                        <div class="flex justify-between text-xs font-tech text-slate-300">
+                            <label>Ketinggian Sasaran (SV)</label>
+                            <span id="txtSp" class="text-purple-400 font-bold">5.0 m</span>
+                        </div>
+                        <input type="range" id="spSlider" min="1" max="10" step="0.1" value="5.0">
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-2 mt-2">
+                        <button onclick="setSetpoint(3.0)" class="py-2.5 text-xs font-bold bg-slate-800 hover:bg-slate-700 rounded-lg text-purple-200 transition">📦 Penghantaran Terendah (3.0 m)</button>
+                        <button onclick="setSetpoint(8.0)" class="py-2.5 text-xs font-bold bg-slate-800 hover:bg-slate-700 rounded-lg text-purple-200 transition">🛸 Melayang Tinggi (8.0 m)</button>
+                    </div>
+                </div>
+
+                <!-- Penalaan Parameter PID -->
+                <div class="glass-panel p-5 flex-grow flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center border-b border-slate-700 pb-2 mb-4">
+                            <h3 class="text-xs font-bold uppercase text-purple-400 tracking-wider">⚙️ Parameter PID Autopilot</h3>
+                            <button id="btnAutoTune" onclick="runAutoTune()" class="px-3 py-1 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/50 text-purple-300 rounded-lg text-[10px] font-bold transition">
+                                🤖 Auto-Tune PID
+                            </button>
+                        </div>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <div class="flex justify-between text-xs font-tech text-zinc-400"><label>Proportional (Kp) - Respons Daya</label><span id="txtKp" class="text-white">4.5</span></div>
+                                <input type="range" id="kpSlider" min="0" max="15" step="0.1" value="4.5">
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-xs font-tech text-zinc-400"><label>Integral (Ki) - Penstabil Beban</label><span id="txtKi" class="text-white">0.3</span></div>
+                                <input type="range" id="kiSlider" min="0" max="3" step="0.05" value="0.3">
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-xs font-tech text-zinc-400"><label>Derivative (Kd) - Meredam Goyangan</label><span id="txtKd" class="text-white">1.5</span></div>
+                                <input type="range" id="kdSlider" min="0" max="8" step="0.1" value="1.5">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Gangguan / Disturbance -->
+                    <div class="border-t border-slate-700 pt-4 mt-4">
+                        <span class="text-xs font-bold text-slate-300 block mb-2">⚡ Simulasi Gangguan (Disturbance):</span>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button onclick="applyWindGust()" class="py-2.5 px-1 bg-sky-950/40 hover:bg-sky-900/40 text-sky-300 border border-sky-500/20 rounded-xl text-xs font-bold transition">💨 Angin Kencang</button>
+                            <button onclick="dropPackage()" class="py-2.5 px-1 bg-purple-950/40 hover:bg-purple-900/40 text-purple-300 border border-purple-500/20 rounded-xl text-xs font-bold transition">📦 Lepaskan Paket</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KOLOM TENGAH: Animasi Drone 2D (4 Kolom) -->
+            <div class="lg:col-span-4 flex flex-col gap-6">
+                <div class="glass-panel p-5 flex flex-col h-full relative overflow-hidden min-h-[420px]">
+                    <div class="flex justify-between items-center mb-2 z-10">
+                        <span class="text-xs font-bold uppercase text-purple-400 tracking-wider">🛸 Ruang Udara (Plant)</span>
+                        <span id="txtStateLabel" class="text-[10px] bg-slate-900 px-3 py-1 rounded-full text-slate-400 font-tech">Sarat Muatan</span>
+                    </div>
+
+                    <!-- Canvas Animasi Terbang -->
+                    <div class="w-full flex-grow relative bg-[#040815] rounded-2xl border border-slate-800 mt-2 overflow-hidden min-h-[250px]">
+                        <canvas id="droneCanvas" class="absolute inset-0 w-full h-full block"></canvas>
+                    </div>
+
+                    <!-- Sensor Ketinggian Real-Time -->
+                    <div class="mt-4 bg-slate-950/60 p-4 rounded-2xl border border-slate-800 text-center flex justify-around items-center">
+                        <div>
+                            <span class="text-[10px] font-tech text-slate-500 uppercase tracking-widest block mb-1">Tinggi Aktual (PV)</span>
+                            <h2 id="txtActual" class="text-4xl font-black font-tech text-purple-400">0.0 m</h2>
+                        </div>
+                        <div class="border-l border-slate-800 h-10"></div>
+                        <div>
+                            <span class="text-[10px] font-tech text-slate-500 uppercase tracking-widest block mb-1">Status Autopilot</span>
+                            <h2 id="txtResultLabel" class="text-xs font-bold font-tech text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-1 rounded-full">STANDBY</h2>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KOLOM KANAN: Grafik Respons Transien & Daya (4 Kolom) -->
+            <div class="lg:col-span-4 flex flex-col gap-6">
+                
+                <!-- Grafik Ketinggian -->
+                <div class="glass-panel p-5 h-[230px] flex flex-col justify-between">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs font-bold uppercase text-purple-400 tracking-wider">📈 Transient Response Curve</span>
+                        <span id="txtError" class="text-[10px] font-tech text-white bg-rose-500/20 px-2 py-0.5 rounded border border-rose-500/30">Ralat: 0.0m</span>
+                    </div>
+                    <div class="w-full relative h-36">
+                        <canvas id="pidChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Daya Tujahan Motor -->
+                <div class="glass-panel p-5 flex-grow flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-xs font-bold uppercase text-purple-400 tracking-wider border-b border-slate-700 pb-2 mb-3">⚡ Daya Tujahan Motor (Actuator Output)</h3>
+                        
+                        <div class="flex justify-between text-xs font-tech mb-1">
+                            <span class="text-slate-300">PWM Output BLDC Motor</span>
+                            <span id="txtPwm" class="text-purple-400 font-bold text-lg">0%</span>
+                        </div>
+                        
+                        <div class="w-full bg-slate-900 h-3 rounded-full overflow-hidden border border-slate-700 shadow-inner">
+                            <div id="barPwm" class="bg-gradient-to-r from-purple-600 to-fuchsia-400 h-full transition-all duration-100" style="width: 0%; box-shadow: 0 0 10px #a855f7;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Laporan Logika Analitik -->
+                    <div class="mt-4 p-3 bg-purple-950/40 border border-purple-900/30 rounded-xl">
+                        <span class="text-[10px] font-tech text-purple-400 uppercase block mb-1">🔍 Analisis Sistem KBK:</span>
+                        <p id="txtLogic" class="text-xs text-slate-300 leading-relaxed">
+                            Sistem stabil. Autopilot memodulasi daya angkat motor secara presisi untuk melawan berat drone dan hambatan udara.
+                        </p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ================= TAB 2: PELAN PERNIAGAAN ================= -->
+        <div id="tabBiz" class="hidden grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            <div class="glass-panel p-6 flex flex-col gap-4">
+                <div class="w-12 h-12 bg-purple-950/40 rounded-full flex items-center justify-center text-2xl border border-purple-700/50">📦</div>
+                <h3 class="text-lg font-bold text-purple-300">1. Isu & Cabaran Pasaran</h3>
+                <p class="text-sm text-slate-300 leading-relaxed">
+                    Sektor logistik masa kini memerlukan penghantaran pantas (instant delivery) untuk barangan perubatan dan makanan. Penggunaan kurir darat mengalami kekangan kesesakan lalu lintas. Penggunaan drone sedia ada menghadapi risiko pelanggaran akibat kegagalan mengekalkan ketinggian yang stabil semasa proses menurunkan barangan.
+                </p>
+            </div>
+
+            <div class="glass-panel p-6 flex flex-col gap-4">
+                <div class="w-12 h-12 bg-purple-950/40 rounded-full flex items-center justify-center text-2xl border border-purple-700/50">💡</div>
+                <h3 class="text-lg font-bold text-purple-300">2. Solusi AeroPost AI</h3>
+                <p class="text-sm text-slate-300 leading-relaxed">
+                    <strong>AeroPost AI:</strong> Sistem autopilot drone hantaran pintar yang menggunakan kawalan gelung tertutup (Closed-Loop PID) yang responsif tinggi. Dilengkapi sensor altitude LiDAR untuk penstabilan tahap milimeter, membolehkan drone melepaskan muatan secara selamat tanpa memerlukan landasan khas.
+                </p>
+            </div>
+
+            <div class="glass-panel p-6 flex flex-col gap-4 border-l-4 border-l-purple-500">
+                <div class="w-12 h-12 bg-fuchsia-950/40 rounded-full flex items-center justify-center text-2xl border border-fuchsia-700/50">💸</div>
+                <h3 class="text-lg font-bold text-purple-300">3. Model Perniagaan</h3>
+                <ul class="text-sm text-slate-300 leading-relaxed list-disc pl-4 space-y-2">
+                    <li><strong>Pasaran Sasaran:</strong> Hospital/Farmasi, Syarikat E-commerce, Industri Minyak & Gas (penghantaran dokumen pelantar).</li>
+                    <li><strong>Aliran Hasil:</strong> Penjualan unit armada drone Rp 35 Juta / unit + Kontrak Penyelenggaraan Sistem Kontrol Berlangganan (SaaS Cloud Autopilot).</li>
+                    <li><strong>Nilai Tambah KBK:</strong> Fungsi *Auto-Tune* membolehkan kawalan motor ditala secara dinamik mengikut berat bungkusan berbeza secara automatik.</li>
+                </ul>
+            </div>
+
+        </div>
+
+    </div>
+
+    <footer class="mt-8 text-center text-[10px] font-tech text-slate-600 max-w-7xl mx-auto w-full border-t border-slate-800 pt-4">
+        Tugas Individu Sistem Kendali Berbasis Komputer — Proyek Inovasi Smart Logistic Autopilot.
+    </footer>
+
+    <!-- ================= LOGIKA SIMULASI & AUTOTUNING JAVASCRIPT ================= -->
+    <script>
+        // --- 1. UI Tab Switcher ---
+        function switchTab(tab) {
+            document.getElementById('tabSim').classList.toggle('hidden', tab !== 'sim');
+            document.getElementById('tabBiz').classList.toggle('hidden', tab !== 'biz');
+            
+            document.getElementById('btnSim').className = tab === 'sim' ? 'tab-btn tab-active px-5 py-2 rounded-full text-xs font-bold' : 'tab-btn tab-inactive px-5 py-2 rounded-full text-xs font-bold border border-slate-700';
+            document.getElementById('btnBiz').className = tab === 'biz' ? 'tab-btn tab-active px-5 py-2 rounded-full text-xs font-bold' : 'tab-btn tab-inactive px-5 py-2 rounded-full text-xs font-bold border border-slate-700';
+        }
+
+        // --- 2. Chart.js Setup ---
+        const ctxGraph = document.getElementById('pidChart').getContext('2d');
+        const maxPts = 50;
+        const labels = Array(maxPts).fill('');
+        const actualData = Array(maxPts).fill(0.0); 
+        const setpointData = Array(maxPts).fill(5.0);
+
+        const chart = new Chart(ctxGraph, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: 'Tinggi Aktual', data: actualData, borderColor: '#a855f7', borderWidth: 3, pointRadius: 0, tension: 0.3 },
+                    { label: 'Target', data: setpointData, borderColor: '#ef4444', borderWidth: 1.5, borderDash: [4, 4], pointRadius: 0 }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, animation: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { display: false },
+                    y: { min: 0, max: 11, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#64748b', font: {family: 'Space Mono', size: 10} } }
+                }
+            }
+        });
+
+        // --- 3. Parameter Fizik Drone (Plant Model) ---
+        let altitude = 0.0;        // Ketinggian aktual drone (meter)
+        let velocity = 0.0;        // Kecepatan vertikal (m/s)
+        let mass = 2.0;            // Massa total drone (kg) (Menyusut saat paket dilepas)
+        let thrust = 0.0;          // Gaya angkat motor (Newton)
+        let windForce = 0.0;       // Gangguan gaya angin (Newton)
+        let isAutoTuning = false;
+        let actionTime = 0;
+        let hasPackage = true;     // Status paket di bawah drone
+
+        // Memori Integratif PID
+        let integral = 0;
+        let prevError = 0;
+
+        // Bounding UI Sliders
+        const slSp = document.getElementById('spSlider');
+        const slKp = document.getElementById('kpSlider');
+        const slKi = document.getElementById('kiSlider');
+        const slKd = document.getElementById('kdSlider');
+
+        function updateSliderLabels() {
+            document.getElementById('txtSp').innerText = parseFloat(slSp.value).toFixed(1) + " m";
+            document.getElementById('txtKp').innerText = slKp.value;
+            document.getElementById('txtKi').innerText = slKi.value;
+            document.getElementById('txtKd').innerText = slKd.value;
+        }
+        [slSp, slKp, slKi, slKd].forEach(el => el.addEventListener('input', updateSliderLabels));
+
+        function setSetpoint(val) { slSp.value = val; updateSliderLabels(); }
+        
+        // Simulasi Gangguan: Angin kencang mendorong drone ke bawah
+        function applyWindGust() {
+            windForce = -25.0; // Angin kencang menekan ke bawah
+        }
+
+        // Simulasi Gangguan: Paket terlepas (massa berkurang instan)
+        function dropPackage() {
+            if (!hasPackage) return;
+            hasPackage = false;
+            mass = 1.0; // Massa berkurang setengahnya (dari 2kg ke 1kg)
+            document.getElementById('txtStateLabel').innerText = "Tanpa Muatan";
+            document.getElementById('txtStateLabel').className = "text-[10px] bg-slate-800 px-3 py-1 rounded-full text-slate-300 font-tech";
+        }
+
+        // --- 4. Fungsi Penalaan Automatik Auto-Tune (Ziegler-Nichols) ---
+        function runAutoTune() {
+            if (isAutoTuning) return;
+            isAutoTuning = true;
+            
+            const btn = document.getElementById('btnAutoTune');
+            btn.innerText = "⚡ Tuning...";
+            btn.className = "px-3 py-1 bg-amber-500/40 border border-amber-500/70 text-amber-200 rounded-lg text-[10px] font-bold animate-pulse";
+            
+            // Setpoint standar saat proses penalaan
+            slSp.value = 6.0;
+            updateSliderLabels();
+
+            // Set Ki & Kd ke nol terlebih dahulu
+            slKi.value = 0;
+            slKd.value = 0;
+            updateSliderLabels();
+
+            let targetKp = 1.0;
+            let tuneStep = 0;
+
+            const tuneInterval = setInterval(() => {
+                tuneStep++;
+                
+                if (tuneStep < 20) {
+                    targetKp += 0.55;
+                    slKp.value = targetKp.toFixed(1);
+                    updateSliderLabels();
+                } else {
+                    // Selesai mendeteksi Ultimate Gain (Ku)
+                    clearInterval(tuneInterval);
+                    
+                    let Ku = targetKp; 
+                    let Pu = 0.8; // Estimasi periode osilasi gelung tertutup drone
+
+                    // Formula Klasik Ziegler-Nichols PID
+                    let Kp_tuned = 0.6 * Ku;
+                    let Ki_tuned = 2 * Kp_tuned / Pu * 0.12; 
+                    let Kd_tuned = Kp_tuned * Pu / 8 * 1.5;
+
+                    slKp.value = Kp_tuned.toFixed(1);
+                    slKi.value = Ki_tuned.toFixed(2);
+                    slKd.value = Kd_tuned.toFixed(1);
+                    updateSliderLabels();
+
+                    // Bersihkan memori integral lama
+                    integral = 0;
+
+                    btn.innerText = "🤖 Auto-Tune PID";
+                    btn.className = "px-3 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-300 rounded-lg text-[10px] font-bold transition";
+                    isAutoTuning = false;
+                }
+            }, 150);
+        }
+
+        // --- 5. Main Control Loop (dt=0.1s / 100ms) ---
+        function controlLoop() {
+            const dt = 0.1;
+            const sp = parseFloat(slSp.value);
+
+            // A. Update Fisika Terbang (Plant Model)
+            const g = 9.8; // Gravitasi
+            const airDamping = 0.25 * velocity; // Hambatan udara vertikal
+
+            // Percepatan = (Thrust_Motor - Berat - Hambatan_Udara + Gangguan_Angin) / Massa
+            const acceleration = (thrust - (mass * g) - airDamping + windForce) / mass;
+            
+            velocity += acceleration * dt;
+            altitude += velocity * dt;
+
+            // Redakan gaya angin kencang secara gradual
+            windForce *= 0.15;
+
+            // Batasi lantai tanah (tidak boleh menembus tanah)
+            if (altitude < 0.0) {
+                altitude = 0.0;
+                velocity = 0.0;
+            }
+
+            // B. Algoritma PID Komputer
+            let error = sp - altitude;
+
+            const Kp = parseFloat(slKp.value);
+            const Ki = parseFloat(slKi.value);
+            const Kd = parseFloat(slKd.value);
+
+            integral += error * dt;
+            // Anti-Windup
+            integral = Math.max(-15, Math.min(15, integral));
+
+            let derivative = (error - prevError) / dt;
+
+            let controlSignal = (Kp * error) + (Ki * integral) + (Kd * derivative);
+
+            // Mengonversi sinyal kontrol menjadi Gaya Dorong / Thrust Motor (Newton)
+            // Saturated (Gaya dorong motor dibatasi dari 0 Newton sampai 50 Newton)
+            thrust = Math.max(0, Math.min(50, controlSignal + (mass * g)));
+
+            prevError = error;
+
+            // C. Update Tampilan Panel UI
+            document.getElementById('txtActual').innerText = altitude.toFixed(2) + " m";
+            
+            // Konversi thrust ke persentase PWM (50 Newton dianggap 100% daya)
+            const pwmPct = Math.round((thrust / 50) * 100);
+            document.getElementById('txtPwm').innerText = pwmPct + "%";
+            document.getElementById('barPwm').style.width = pwmPct + "%";
+            document.getElementById('txtError').innerText = "Ralat: " + error.toFixed(1) + "m";
+
+            // Update Logika Analisis untuk Presentasi
+            const logicTxt = document.getElementById('txtLogic');
+            const resultLabel = document.getElementById('txtResultLabel');
+            const errorAbs = Math.abs(error);
+
+            if (isAutoTuning) {
+                resultLabel.innerText = "TUNING...";
+                resultLabel.className = "text-xs font-bold font-tech text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-full";
+                logicTxt.innerHTML = `<span class="text-amber-400 font-bold">Auto-Tuning Ziegler-Nichols:</span><br>Sistem menaikkan Kp untuk mencari osilasi konstan. Seluruh parameter Kp, Ki, Kd akan diperbarui otomatis dalam beberapa detik.`;
+            } else {
+                if (altitude === 0.0) {
+                    resultLabel.innerText = "LANDING / GROUND";
+                    resultLabel.className = "text-xs font-bold font-tech text-slate-400 bg-slate-500/10 border border-slate-500/20 px-2 py-1 rounded-full";
+                    logicTxt.innerHTML = `<b>Drone di Darat:</b> Menunggu daya angkat melebihi berat gaya gravitasi untuk melakukan *take-off*.`;
+                } else if (errorAbs < 0.15) {
+                    resultLabel.innerText = "STABIL / HOVER";
+                    resultLabel.className = "text-xs font-bold font-tech text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded-full";
+                    logicTxt.innerHTML = `<b>Hovering Sempurna:</b> Ketinggian presisi terjaga stabil. Gaya angkat motor seimbang sepenuhnya dengan beban gravitasi drone. Sempurna untuk drop paket!`;
+                } else {
+                    resultLabel.innerText = "PENYESUAIAN";
+                    resultLabel.className = "text-xs font-bold font-tech text-sky-400 bg-sky-500/10 border border-sky-500/20 px-2 py-1 rounded-full";
+                    if (error > 0) {
+                        logicTxt.innerHTML = `<b>Mendaki Ketinggian:</b> Ketinggian di bawah target. Kontroler PID mendeteksi ralat positif dan menaikkan daya angkat motor secara proporsional.`;
+                    } else {
+                        logicTxt.innerHTML = `<b>Mereduksi Tinggi:</b> Ketinggian melebihi target. Motor menurunkan daya angkat agar gaya gravitasi menarik drone turun secara halus.`;
+                    }
+                }
+            }
+
+            // Update Grafik Line Chart.js
+            actualData.push(Number(altitude.toFixed(2))); actualData.shift();
+            setpointData.push(sp); setpointData.shift();
+            chart.update('none');
+        }
+
+        setInterval(controlLoop, 100);
+
+        // --- 6. Animasi Canvas 2D (Sleek Delivery Drone Drawing) ---
+        const canvas = document.getElementById('droneCanvas');
+        const ctx2d = canvas.getContext('2d');
+        let rotorAngle = 0;
+
+        function resizeCanvas() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function drawScene() {
+            const W = canvas.width;
+            const H = canvas.height;
+            if (W === 0 || H === 0 || !ctx2d) {
+                requestAnimationFrame(drawScene);
+                return;
+            }
+
+            ctx2d.clearRect(0, 0, W, H);
+
+            const cx = W / 2;
+            
+            // Konversi meter ketinggian drone ke piksel koordinat canvas Y
+            // Tanah berada di bagian bawah canvas (H - 30px)
+            const groundY = H - 35;
+            const scalePixelsPerMeter = (H - 100) / 10; // Skala maks 10 meter
+            const currentDroneY = groundY - (altitude * scalePixelsPerMeter);
+
+            // A. Gambar Tanah & Rumput Rumah
+            ctx2d.fillStyle = '#0f172a'; // Tanah gelap
+            ctx2d.fillRect(0, groundY, W, 40);
+            ctx2d.strokeStyle = '#10b981'; // Rumput hijau neon terang
+            ctx2d.lineWidth = 4;
+            ctx2d.beginPath();
+            ctx2d.moveTo(0, groundY);
+            ctx2d.lineTo(W, groundY);
+            ctx2d.stroke();
+
+            // B. Gambar Garis Target Setpoint (Garis Merah Putus-putus)
+            const targetSpY = groundY - (parseFloat(slSp.value) * scalePixelsPerMeter);
+            ctx2d.strokeStyle = 'rgba(239, 68, 68, 0.4)';
+            ctx2d.lineWidth = 2;
+            ctx2d.setLineDash([8, 8]);
+            ctx2d.beginPath();
+            ctx2d.moveTo(0, targetSpY);
+            ctx2d.lineTo(W, targetSpY);
+            ctx2d.stroke();
+            ctx2d.setLineDash([]); // Reset line dash
+
+            // C. Gambar Struktur Drone Terbang
+            actionTime += 0.05;
+            
+            // Kecepatan putaran rotor baling-baling berdasarkan daya motor aktual (Thrust)
+            const rotorSpeed = (thrust / 50) * 1.5;
+            rotorAngle += rotorSpeed;
+
+            ctx2d.save();
+            ctx2d.translate(cx, currentDroneY);
+
+            // 1. Gambar Semburan Gas Dorong (Thrust Fire Effect) jika motor bekerja keras
+            if (thrust > 5) {
+                ctx2d.fillStyle = `rgba(168, 85, 247, ${0.2 + (thrust / 50) * 0.8})`; // Semburan ungu laser
+                ctx2d.beginPath();
+                ctx2d.moveTo(-25, 10);
+                ctx2d.lineTo(-20, 20 + Math.sin(actionTime * 15) * 8);
+                ctx2d.lineTo(-15, 10);
+                ctx2d.moveTo(15, 10);
+                ctx2d.lineTo(20, 20 + Math.sin(actionTime * 15) * 8);
+                ctx2d.lineTo(25, 10);
+                ctx2d.fill();
+            }
+
+            // 2. Gambar Struktur Bodi Drone (Chassis)
+            ctx2d.fillStyle = '#3f3f46'; // Logam bodi utama
+            ctx2d.strokeStyle = '#1e1b4b';
+            ctx2d.lineWidth = 3;
+            
+            // Lengan sayap kiri & kanan
+            ctx2d.fillRect(-50, -5, 100, 8);
+            
+            // Bodi Tengah Drone
+            ctx2d.fillStyle = '#1e1b4b'; // Ungu gelap metalik
+            ctx2d.beginPath();
+            ctx2d.roundRect(-20, -18, 40, 26, [8, 8, 4, 4]);
+            ctx2d.fill();
+            ctx2d.stroke();
+
+            // Lampu Indikator AI Status
+            ctx2d.fillStyle = isAutoTuning ? '#f59e0b' : (Math.abs(parseFloat(slSp.value) - altitude) < 0.15 ? '#10b981' : '#f43f5e');
+            ctx2d.beginPath();
+            ctx2d.arc(0, -6, 4, 0, Math.PI * 2);
+            ctx2d.fill();
+
+            // 3. Gambar Rotor Kiri & Kanan (Baling-baling berputar)
+            ctx2d.strokeStyle = '#a1a1aa';
+            ctx2d.lineWidth = 3;
+            
+            // Dudukan rotor logam
+            ctx2d.beginPath();
+            ctx2d.moveTo(-45, -5); ctx2d.lineTo(-45, -15);
+            ctx2d.moveTo(45, -5); ctx2d.lineTo(45, -15);
+            ctx2d.stroke();
+
+            // Fungsi gambar bilah baling-baling berputar secara 2D
+            function drawPropeller(x, y) {
+                ctx2d.save();
+                ctx2d.translate(x, y);
+                
+                // Rotasi elips untuk efek baling-baling berputar kencang
+                ctx2d.fillStyle = 'rgba(168, 85, 247, 0.2)'; // Efek blur kipas
+                ctx2d.beginPath();
+                ctx2d.ellipse(0, 0, 24, 4, 0, 0, Math.PI * 2);
+                ctx2d.fill();
+
+                // Bilah propeller padat
+                ctx2d.fillStyle = '#f8fafc';
+                ctx2d.save();
+                ctx2d.rotate(rotorAngle);
+                ctx2d.fillRect(-22, -1.5, 44, 3);
+                ctx2d.restore();
+
+                ctx2d.restore();
+            }
+
+            drawPropeller(-45, -15); // Rotor Kiri
+            drawPropeller(45, -15);  // Rotor Kanan
+
+            // 4. Gambar Muatan Paket Pengiriman di bawah Drone
+            if (hasPackage) {
+                ctx2d.fillStyle = '#d97706'; // Kardus paket cokelat artisan
+                ctx2d.strokeStyle = '#78350f';
+                ctx2d.lineWidth = 2;
+                ctx2d.beginPath();
+                ctx2d.roundRect(-12, 10, 24, 20, 3);
+                ctx2d.fill();
+                ctx2d.stroke();
+
+                // Tali pengaman paket
+                ctx2d.strokeStyle = '#f59e0b';
+                ctx2d.lineWidth = 1.5;
+                ctx2d.beginPath();
+                ctx2d.moveTo(-5, 8); ctx2d.lineTo(-5, 10);
+                ctx2d.moveTo(5, 8); ctx2d.lineTo(5, 10);
+                ctx2d.stroke();
+            }
+
+            ctx2d.restore();
+
+            requestAnimationFrame(drawScene);
+        }
+
+        drawScene();
+    </script>
+</body>
+</html>
